@@ -19,6 +19,8 @@ import wiki from './turndown-plugins/wiki';
 import referenceLink from './showdown-plugins/reference-link';
 import wikiLink from './showdown-plugins/wiki-link';
 import imageLinks from './showdown-plugins/image-links';
+import { deferRemoteImageUrl, hideRemoteImages, originalRemoteImageUrl,
+  restoreRemoteImages } from './remote-image';
 import { Project } from '@/app/api/projects/projects.model';
 
 @Injectable()
@@ -61,11 +63,19 @@ export class DataConversionService {
 
   public toHtml(markdown: string) {
     const html = this.showdownConverter.makeHtml(markdown);
-    return html;
+    return hideRemoteImages(html);
   }
 
   public toMarkdown(html: string) {
-    return this.turndownService.turndown(html);
+    return this.turndownService.turndown(restoreRemoteImages(html));
+  }
+
+  public originalRemoteImageUrl(src: string | null): string | null {
+    return originalRemoteImageUrl(src);
+  }
+
+  public deferRemoteImageUrl(src: string | null): string | null {
+    return deferRemoteImageUrl(src);
   }
 
   public isReady() {

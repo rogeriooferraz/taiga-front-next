@@ -7,9 +7,12 @@
  */
 
 import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { TranslateModule } from '@ngx-translate/core';
 import { HtmlEditorComponent } from './html-editor.component';
 
 @NgModule({
+  imports: [CommonModule, TranslateModule],
   declarations: [HtmlEditorComponent],
   exports: [HtmlEditorComponent],
 })

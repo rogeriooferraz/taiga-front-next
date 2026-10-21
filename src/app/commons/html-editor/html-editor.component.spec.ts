@@ -14,8 +14,10 @@ jest.mock('taiga-html-editor/packages/ckeditor5-build-classic/build/ckeditor', (
 }));
 
 describe('HtmlEditorComponent', () => {
+  const cd = { markForCheck: jest.fn(), detectChanges: jest.fn() } as any;
+
   it('sanitizes incoming content before updating CKEditor', () => {
-    const component = new HtmlEditorComponent();
+    const component = new HtmlEditorComponent(cd);
     const setData = jest.fn();
     (component as any).editor = { setData };
 
@@ -27,10 +29,27 @@ describe('HtmlEditorComponent', () => {
   });
 
   it('sanitizes content received before CKEditor initializes', () => {
-    const component = new HtmlEditorComponent();
+    const component = new HtmlEditorComponent(cd);
 
     component.setHtmlContent('<p>Safe</p><img src="x" onerror="alert(1)">');
 
     expect((component as any).html).toBe('<p>Safe</p><img src="x">');
+  });
+
+  it('keeps external images inert until the editor requests them', () => {
+    const component = new HtmlEditorComponent(cd);
+    const setData = jest.fn();
+    component.setHtmlContent('<p><img src="https://other.example/photo.png" alt="photo"></p>');
+    const hidden = (component as any).html;
+    expect(hidden).not.toContain('src="https://other.example/photo.png"');
+    expect(component.hasExternalImages).toBe(true);
+
+    (component as any).editor = { getData: () => hidden, setData };
+    component.loadExternalImages();
+
+    expect(setData).toHaveBeenCalledWith(
+      '<p><img src="https://other.example/photo.png" alt="photo"></p>'
+    );
+    expect(component.hasExternalImages).toBe(false);
   });
 });

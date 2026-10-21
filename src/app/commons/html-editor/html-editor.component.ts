@@ -15,12 +15,15 @@ import {
   ChangeDetectionStrategy,
   Output,
   EventEmitter,
+  ChangeDetectorRef,
 } from '@angular/core';
 import ClassicEditor from 'taiga-html-editor/packages/ckeditor5-build-classic/build/ckeditor';
 import emojis from './emoji.json';
 import languages from './languages.json';
 import { UploadAdapterService } from '@/app/commons/text-editor/upload-adapter.service';
 import { sanitizeEditorHtml } from './sanitize-editor-html';
+import { hasHiddenRemoteImages, hideRemoteImages, restoreRemoteImages } from
+  '@/app/commons/text-editor/remote-image';
 
 // When changing this, remember to also change in the ckeditor repo
 const DEFAULT_CKEDITOR_LAN = 'en';
@@ -58,6 +61,10 @@ export class HtmlEditorComponent implements AfterViewInit {
   private html = '';
 
   private editor: any;
+
+  public hasExternalImages = false;
+
+  constructor(private readonly cd: ChangeDetectorRef) {}
 
   private getTextPartLanguages(): { title: string; languageCode: string }[] {
     const langList: { title: string; languageCode: string }[] = [
@@ -168,6 +175,8 @@ export class HtmlEditorComponent implements AfterViewInit {
       .then((editor: any) => {
         this.editor = editor;
         this.editor.setData(this.html);
+        this.hasExternalImages = hasHiddenRemoteImages(this.html);
+        this.cd.detectChanges();
         editor.ui.focusTracker.on(
           'change:isFocused',
           (_event: any, _name: any, value: boolean) => {
@@ -177,6 +186,8 @@ export class HtmlEditorComponent implements AfterViewInit {
 
         editor.model.document.on('change:data', () => {
           this.html = this.getHtml();
+          this.hasExternalImages = hasHiddenRemoteImages(this.html);
+          this.cd.detectChanges();
           this.changed.emit(this.html);
         });
 
@@ -269,10 +280,20 @@ export class HtmlEditorComponent implements AfterViewInit {
   }
 
   public setHtmlContent(html: string) {
-    this.html = sanitizeEditorHtml(html);
+    this.html = sanitizeEditorHtml(hideRemoteImages(html));
+    this.hasExternalImages = hasHiddenRemoteImages(this.html);
+    this.cd.markForCheck();
 
     if (this.editor) {
       this.editor.setData(this.html);
     }
+  }
+
+  public loadExternalImages() {
+    if (!this.editor) return;
+    const html = restoreRemoteImages(this.editor.getData());
+    this.hasExternalImages = false;
+    this.editor.setData(html);
+    this.cd.markForCheck();
   }
 }

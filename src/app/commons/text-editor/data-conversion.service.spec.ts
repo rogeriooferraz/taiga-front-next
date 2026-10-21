@@ -10,6 +10,7 @@
 import { createServiceFactory, SpectatorService } from '@ngneat/spectator';
 
 import { DataConversionService } from './data-conversion.service';
+import { hideRemoteImages } from './remote-image';
 
 describe('DataConversionService', () => {
   let spectator: SpectatorService<DataConversionService>;
@@ -272,7 +273,7 @@ New paragraph</p>
     expect(
       spectator.service.toHtml(markdown)
     ).toEqual(
-      expectedHtml
+      hideRemoteImages(expectedHtml)
     );
   });
 
@@ -299,6 +300,58 @@ New paragraph</p>
 | --- | --- |`;
 
     expect(markdownResult).toEqual(expectedMarkdown);
+  });
+
+  it('defers remote images while preserving local attachments and round trips', () => {
+    const markdown = '![remote](https://other.example/photo.png) ' +
+      '![local](/attachments/1/image.png)';
+    const html = spectator.service.toHtml(markdown);
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const images = Array.from(template.content.querySelectorAll('img'));
+
+    expect(images).toHaveLength(2);
+    expect(images[0].getAttribute('src')).toMatch(/^data:image\/svg\+xml,/);
+    expect(spectator.service.originalRemoteImageUrl(images[0].getAttribute('src')))
+      .toBe('https://other.example/photo.png');
+    expect(images[1].getAttribute('src')).toBe('/attachments/1/image.png');
+    expect(spectator.service.toMarkdown(html)).toContain(markdown);
+  });
+
+  it('covers raw HTML and protocol-relative images without hiding local URLs', () => {
+    const origin = document.location.origin;
+    const html = spectator.service.toHtml(
+      `<img src="//other.example/remote.png" alt="remote">` +
+      `<img src="${origin}/attachments/local.png" alt="local">`
+    );
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const images = template.content.querySelectorAll('img');
+
+    expect(spectator.service.originalRemoteImageUrl(images[0].getAttribute('src')))
+      .toBe('//other.example/remote.png');
+    expect(images[1].getAttribute('src')).toBe(`${origin}/attachments/local.png`);
+    expect(spectator.service.toMarkdown(html)).toContain('//other.example/remote.png');
+    expect(spectator.service.originalRemoteImageUrl('data:image/svg+xml,bad#taiga-remote-image=x'))
+      .toBeNull();
+  });
+
+  it('uses the page origin even if the document base changes', () => {
+    const base = document.createElement('base');
+    base.href = 'https://other.example/';
+    document.head.appendChild(base);
+    try {
+      const html = spectator.service.toHtml('![remote](https://other.example/photo.png)');
+      expect(html).not.toContain('src="https://other.example/photo.png"');
+    } finally {
+      base.remove();
+    }
+  });
+
+  it('defers a refreshed cross-origin attachment URL', () => {
+    const url = 'https://media.example/new.png?token=review';
+    const deferred = spectator.service.deferRemoteImageUrl(url);
+    expect(spectator.service.originalRemoteImageUrl(deferred)).toBe(url);
   });
 
   it('escape html', () => {
