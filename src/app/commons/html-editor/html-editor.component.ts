@@ -20,6 +20,7 @@ import ClassicEditor from 'taiga-html-editor/packages/ckeditor5-build-classic/bu
 import emojis from './emoji.json';
 import languages from './languages.json';
 import { UploadAdapterService } from '@/app/commons/text-editor/upload-adapter.service';
+import { sanitizeEditorHtml } from './sanitize-editor-html';
 
 // When changing this, remember to also change in the ckeditor repo
 const DEFAULT_CKEDITOR_LAN = 'en';
@@ -268,7 +269,7 @@ export class HtmlEditorComponent implements AfterViewInit {
   }
 
   public setHtmlContent(html: string) {
-    this.html = html;
+    this.html = sanitizeEditorHtml(html);
 
     if (this.editor) {
       this.editor.setData(this.html);

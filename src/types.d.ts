@@ -20,3 +20,8 @@ declare module 'imurmurhash' {
   const content: any;
 	export default content;
 }
+
+// DOMPurify's declarations use the browser DOMParser type added after
+// this project's TypeScript 3.9 DOM library.
+type DOMParserSupportedType = 'text/html' | 'text/xml' | 'application/xml' |
+  'application/xhtml+xml' | 'image/svg+xml';
