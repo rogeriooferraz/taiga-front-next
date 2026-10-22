@@ -7,21 +7,36 @@
  */
 
 // A fixed, inert image keeps CKEditor's image model and Markdown round trips
-// intact without requesting an author-supplied origin before consent.
+// intact without requesting an author-supplied URL before consent.
 const placeholderSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="220" height="60">' +
   '<rect width="220" height="60" fill="#ddd"/>' +
-  '<text x="10" y="35" font-size="16">External image</text></svg>';
+  '<text x="10" y="35" font-size="16">Load image to preview</text></svg>';
 const placeholderPrefix = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg) +
   '#taiga-remote-image=';
 
-function isRemoteHttpImage(src: string | null): boolean {
-  if (!src) return false;
+function isTrustedLocalImagePath(path: string): boolean {
+  // Encoded separators, dot segments, or percent signs can be interpreted
+  // differently by a proxy. Do not allow them to bypass this path check.
+  if (/%(?:2e|2f|5c|25)/i.test(path)) {
+    return false;
+  }
+
+  return ['/images/', '/emojis/', '/static/', '/media/'].some(
+    (prefix) => path.startsWith(prefix)
+  ) || /^\/v-[a-z0-9_-]+\/(?:images|emojis)\//i.test(path);
+}
+
+function needsImageConsent(src: string | null): boolean {
+  if (!src) {
+    return false;
+  }
   try {
     const url = new URL(src, document.baseURI);
     return (url.protocol === 'http:' || url.protocol === 'https:') &&
-      url.origin !== window.location.origin;
+      (url.origin !== window.location.origin ||
+        !isTrustedLocalImagePath(url.pathname));
   } catch (_error) {
-    return false;
+    return true;
   }
 }
 
@@ -32,14 +47,14 @@ export function originalRemoteImageUrl(src: string | null): string | null {
 
   try {
     const original = decodeURIComponent(src.slice(placeholderPrefix.length));
-    return isRemoteHttpImage(original) ? original : null;
+    return needsImageConsent(original) ? original : null;
   } catch (_error) {
     return null;
   }
 }
 
 export function deferRemoteImageUrl(src: string | null): string | null {
-  return src && isRemoteHttpImage(src) ?
+  return src && needsImageConsent(src) ?
     placeholderPrefix + encodeURIComponent(src) : src;
 }
 

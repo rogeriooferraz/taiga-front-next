@@ -31,9 +31,9 @@ describe('HtmlEditorComponent', () => {
   it('sanitizes content received before CKEditor initializes', () => {
     const component = new HtmlEditorComponent(cd);
 
-    component.setHtmlContent('<p>Safe</p><img src="x" onerror="alert(1)">');
+    component.setHtmlContent('<p>Safe</p><img src="/media/photo.png" onerror="alert(1)">');
 
-    expect((component as any).html).toBe('<p>Safe</p><img src="x">');
+    expect((component as any).html).toBe('<p>Safe</p><img src="/media/photo.png">');
   });
 
   it('keeps external images inert until the editor requests them', () => {
@@ -42,14 +42,31 @@ describe('HtmlEditorComponent', () => {
     component.setHtmlContent('<p><img src="https://other.example/photo.png" alt="photo"></p>');
     const hidden = (component as any).html;
     expect(hidden).not.toContain('src="https://other.example/photo.png"');
-    expect(component.hasExternalImages).toBe(true);
+    expect(component.hasDeferredImages).toBe(true);
 
     (component as any).editor = { getData: () => hidden, setData };
-    component.loadExternalImages();
+    component.loadDeferredImages();
 
     expect(setData).toHaveBeenCalledWith(
       '<p><img src="https://other.example/photo.png" alt="photo"></p>'
     );
-    expect(component.hasExternalImages).toBe(false);
+    expect(component.hasDeferredImages).toBe(false);
+  });
+
+  it('keeps arbitrary same-origin images inert until the editor requests them', () => {
+    const component = new HtmlEditorComponent(cd);
+    const setData = jest.fn();
+    component.setHtmlContent('<p><img src="/api/v1/projects" alt="local"></p>');
+    const hidden = (component as any).html;
+    expect(hidden).not.toContain('src="/api/v1/projects"');
+    expect(component.hasDeferredImages).toBe(true);
+
+    (component as any).editor = { getData: () => hidden, setData };
+    component.loadDeferredImages();
+
+    expect(setData).toHaveBeenCalledWith(
+      '<p><img src="/api/v1/projects" alt="local"></p>'
+    );
+    expect(component.hasDeferredImages).toBe(false);
   });
 });

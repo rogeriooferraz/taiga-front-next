@@ -303,37 +303,86 @@ New paragraph</p>
   });
 
   it('defers remote images while preserving local attachments and round trips', () => {
-    const markdown = '![remote](https://other.example/photo.png) ' +
-      '![local](/attachments/1/image.png)';
-    const html = spectator.service.toHtml(markdown);
+    const imageMarkdown = '![remote](https://other.example/photo.png) ' +
+      '![local](/media/attachments/1/image.png?token=review)';
+    const imageHtml = spectator.service.toHtml(imageMarkdown);
     const template = document.createElement('template');
-    template.innerHTML = html;
+    template.innerHTML = imageHtml;
     const images = Array.from(template.content.querySelectorAll('img'));
 
     expect(images).toHaveLength(2);
     expect(images[0].getAttribute('src')).toMatch(/^data:image\/svg\+xml,/);
     expect(spectator.service.originalRemoteImageUrl(images[0].getAttribute('src')))
       .toBe('https://other.example/photo.png');
-    expect(images[1].getAttribute('src')).toBe('/attachments/1/image.png');
-    expect(spectator.service.toMarkdown(html)).toContain(markdown);
+    expect(images[1].getAttribute('src'))
+      .toBe('/media/attachments/1/image.png?token=review');
+    expect(spectator.service.toMarkdown(imageHtml)).toContain(imageMarkdown);
   });
 
-  it('covers raw HTML and protocol-relative images without hiding local URLs', () => {
+  it('covers raw HTML and protocol-relative images without hiding local assets', () => {
     const origin = document.location.origin;
-    const html = spectator.service.toHtml(
+    const imageHtml = spectator.service.toHtml(
       `<img src="//other.example/remote.png" alt="remote">` +
-      `<img src="${origin}/attachments/local.png" alt="local">`
+      `<img src="${origin}/images/local.png" alt="local">`
     );
     const template = document.createElement('template');
-    template.innerHTML = html;
+    template.innerHTML = imageHtml;
     const images = template.content.querySelectorAll('img');
 
     expect(spectator.service.originalRemoteImageUrl(images[0].getAttribute('src')))
       .toBe('//other.example/remote.png');
-    expect(images[1].getAttribute('src')).toBe(`${origin}/attachments/local.png`);
-    expect(spectator.service.toMarkdown(html)).toContain('//other.example/remote.png');
+    expect(images[1].getAttribute('src')).toBe(`${origin}/images/local.png`);
+    expect(spectator.service.toMarkdown(imageHtml))
+      .toContain('//other.example/remote.png');
     expect(spectator.service.originalRemoteImageUrl('data:image/svg+xml,bad#taiga-remote-image=x'))
       .toBeNull();
+  });
+
+  it('defers arbitrary same-origin paths while keeping Taiga image paths', () => {
+    const origin = document.location.origin;
+    const imageMarkdown = '![api](/api/v1/projects) ' +
+      '![relative](review-image.png) ' +
+      '![static](/images/logo.png) ' +
+      '![emoji](/v-123/emojis/smile.png) ' +
+      '![media](/media/attachments/photo.png?token=review)';
+    const imageHtml = spectator.service.toHtml(imageMarkdown);
+    const template = document.createElement('template');
+    template.innerHTML = imageHtml;
+    const images = Array.from(template.content.querySelectorAll('img'));
+
+    expect(images).toHaveLength(5);
+    expect(spectator.service.originalRemoteImageUrl(images[0].getAttribute('src')))
+      .toBe('/api/v1/projects');
+    expect(spectator.service.originalRemoteImageUrl(images[1].getAttribute('src')))
+      .toBe('review-image.png');
+    expect(images[2].getAttribute('src')).toBe('/images/logo.png');
+    expect(images[3].getAttribute('src')).toBe('/v-123/emojis/smile.png');
+    expect(images[4].getAttribute('src'))
+      .toBe('/media/attachments/photo.png?token=review');
+    expect(spectator.service.toMarkdown(imageHtml)).toContain(imageMarkdown);
+    expect(spectator.service.originalRemoteImageUrl(
+      spectator.service.deferRemoteImageUrl(`${origin}/api/v1/projects`)))
+      .toBe(`${origin}/api/v1/projects`);
+  });
+
+  it('rejects encoded path syntax under trusted image prefixes', () => {
+    for (const path of [
+      '/images/../api/v1/projects',
+      '/images/%2f..%2fapi/v1/projects',
+      '/images/%252f..%252fapi/v1/projects',
+      '/media/%5c..%5capi/v1/projects',
+    ]) {
+      expect(spectator.service.originalRemoteImageUrl(
+        spectator.service.deferRemoteImageUrl(path)))
+        .toBe(path);
+    }
+  });
+
+  it('defers an image URL that cannot be parsed', () => {
+    const malformed = 'http://[invalid';
+    expect(spectator.service.originalRemoteImageUrl(
+      spectator.service.deferRemoteImageUrl(malformed)))
+      .toBe(malformed);
   });
 
   it('uses the page origin even if the document base changes', () => {
@@ -341,8 +390,9 @@ New paragraph</p>
     base.href = 'https://other.example/';
     document.head.appendChild(base);
     try {
-      const html = spectator.service.toHtml('![remote](https://other.example/photo.png)');
-      expect(html).not.toContain('src="https://other.example/photo.png"');
+      const imageHtml = spectator.service.toHtml(
+        '![remote](https://other.example/photo.png)');
+      expect(imageHtml).not.toContain('src="https://other.example/photo.png"');
     } finally {
       base.remove();
     }

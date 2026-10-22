@@ -7,6 +7,6 @@ Copyright (c) 2021-present Kaleidos INC
 -->
 
 <div #el></div>
-<button *ngIf="hasExternalImages" type="button" (click)="loadExternalImages()">
-  {{ 'COMMON.WYSIWYG.LOAD_EXTERNAL_IMAGES' | translate }}
+<button *ngIf="hasDeferredImages" type="button" (click)="loadDeferredImages()">
+  {{ 'COMMON.WYSIWYG.LOAD_IMAGES' | translate }}
 </button>
