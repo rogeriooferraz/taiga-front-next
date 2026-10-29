@@ -67,6 +67,12 @@ export class HtmlEditorComponent implements AfterViewInit {
 
   constructor(private readonly cd: ChangeDetectorRef) {}
 
+  private getEditorUiLanguage(): string {
+    if (this.lan === 'zh-hans') return 'zh-cn';
+    if (this.lan === 'zh-hant') return 'zh';
+    return this.lan;
+  }
+
   private getTextPartLanguages(): { title: string; languageCode: string }[] {
     const langList: { title: string; languageCode: string }[] = [
       { title: 'العربية', languageCode: 'ar' },
@@ -90,7 +96,7 @@ export class HtmlEditorComponent implements AfterViewInit {
     return new Promise((resolve) => {
       (window as any).ljs.load(
         `/${(window as any).TAIGA_VERSION}/ckeditor-translations/${
-          this.lan
+          this.getEditorUiLanguage()
         }.js`,
         resolve
       );
@@ -129,6 +135,7 @@ export class HtmlEditorComponent implements AfterViewInit {
     ClassicEditor.create(this.el.nativeElement, {
       placeholder: this.placeholder,
       language: {
+        ui: this.getEditorUiLanguage(),
         content: this.lan,
         textPartLanguage: this.getTextPartLanguages(),
       },

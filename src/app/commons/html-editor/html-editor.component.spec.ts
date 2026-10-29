@@ -7,6 +7,7 @@
  */
 
 import { HtmlEditorComponent } from './html-editor.component';
+import ClassicEditor from 'taiga-html-editor/packages/ckeditor5-build-classic/build/ckeditor';
 
 jest.mock('taiga-html-editor/packages/ckeditor5-build-classic/build/ckeditor', () => ({
   __esModule: true,
@@ -15,6 +16,42 @@ jest.mock('taiga-html-editor/packages/ckeditor5-build-classic/build/ckeditor', (
 
 describe('HtmlEditorComponent', () => {
   const cd = { markForCheck: jest.fn(), detectChanges: jest.fn() } as any;
+
+  it('uses the selected editor UI language and its shipped translation', async () => {
+    for (const [language, uiLanguage] of [
+      ['en', 'en'],
+      ['pt-br', 'pt-br'],
+      ['zh-hans', 'zh-cn'],
+      ['zh-hant', 'zh'],
+    ]) {
+      const component = new HtmlEditorComponent(cd);
+      component.lan = language;
+      (component as any).el = { nativeElement: document.createElement('div') };
+      const create = ClassicEditor.create as jest.Mock;
+      create.mockReturnValue(new Promise(() => {}));
+
+      (component as any).initEditor();
+      expect(create.mock.calls[0][1].language.content).toBe(language);
+      expect(create.mock.calls[0][1].language.ui).toBe(uiLanguage);
+      create.mockClear();
+
+      if (language !== 'en') {
+        const load = jest.fn((_path, done) => done());
+        const previousLoader = (window as any).ljs;
+        const previousVersion = (window as any).TAIGA_VERSION;
+        (window as any).ljs = { load };
+        (window as any).TAIGA_VERSION = 'v-test';
+        try {
+          await component.getLegacyLoadTranslation();
+          expect(load.mock.calls[0][0]).toBe(
+            `/v-test/ckeditor-translations/${uiLanguage}.js`);
+        } finally {
+          (window as any).ljs = previousLoader;
+          (window as any).TAIGA_VERSION = previousVersion;
+        }
+      }
+    }
+  });
 
   it('sanitizes incoming content before updating CKEditor', () => {
     const component = new HtmlEditorComponent(cd);
